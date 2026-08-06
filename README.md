@@ -1,1 +1,47 @@
-# study-skill
+# Kaoyan Print Kit
+
+面向考研复习的 Codex Skill，用于把知识点、错题和理解检测内容整理为适合 A4 双面打印的 PDF，并同步生成可编辑的 DOCX。
+
+## 能做什么
+
+- 背诵资料：按科目、章节和内容类型整理公式、定义、定理、时间线、词汇或混合知识点。
+- 错题与题目摘取：从 PDF、Word 或图片中选取指定页码、题号或关键词内容，生成练习版和解析版。
+- 理解与检测：解释知识点，并生成覆盖回忆、辨析、解释、应用、迁移和纠错的检测题。
+- 打印质检：检查来源对应、公式与图形、答案隔离、中文字体、分页、裁切和黑白打印效果。
+
+## 仓库结构
+
+```text
+skills/kaoyan-print-kit/       Skill 主体
+agents/study-pdf-reviewer.toml 可选的只读质检 Agent
+```
+
+## 安装
+
+将 `skills/kaoyan-print-kit` 放入个人 Codex Skills 目录：
+
+- Windows：`%USERPROFILE%\.codex\skills\kaoyan-print-kit`
+- macOS / Linux：`~/.codex/skills/kaoyan-print-kit`
+
+如需独立质检 Agent，再将 `agents/study-pdf-reviewer.toml` 放入个人 Codex Agents 目录：
+
+- Windows：`%USERPROFILE%\.codex\agents\study-pdf-reviewer.toml`
+- macOS / Linux：`~/.codex/agents/study-pdf-reviewer.toml`
+
+重启 Codex 后，可直接用自然语言调用，无需记住 Agent 名称。例如：
+
+```text
+把这份 PDF 第 12 页的第 3、5、8 题整理成练习版和解析版，并检查排版。
+```
+
+也可以显式调用：
+
+```text
+$kaoyan-print-kit 把这些定义整理成适合黑白打印的背诵 PDF 和 DOCX。
+```
+
+## 输出流程
+
+Skill 会先确认黑白或彩色打印、科目章节、内容范围和不确定的 OCR 片段。在用户确认结构后生成草稿、渲染预览、完成逐页质检，再交付最终 PDF 与 DOCX。
+
+生成器使用 Python，并依赖 `Pillow`、`python-docx`、`pypdf` 和 `reportlab`。PDF 需要可嵌入的简体中文 TrueType 字体；生成器会自动查找 Windows 等线字体或 Noto Sans CJK。也可通过 `KAOYAN_FONT_REGULAR`、`KAOYAN_FONT_BOLD` 和 `KAOYAN_DOCX_FONT` 指定字体。
