@@ -1,0 +1,7 @@
+interface:
+  display_name: "Kaoyan Print Kit"
+  short_description: "Create print-ready study PDFs and DOCX files"
+  default_prompt: "Use $kaoyan-print-kit to organize my study materials into a print-ready PDF and editable DOCX."
+policy:
+  allow_implicit_invocation: true
+
