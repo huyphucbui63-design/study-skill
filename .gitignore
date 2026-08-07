@@ -17,7 +17,6 @@ qa-*/
 /outputs/
 .env
 .env.*
-!.env.example
 *.local.json
 
 # Local QA and browser test artifacts.

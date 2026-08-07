@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>考研题目重建工作台</title>
+  <link rel="stylesheet" href="/assets/app.css">
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <span class="eyebrow">KAOYAN QUESTION BUILDER</span>
+      <h1>从原题页到可打印题集</h1>
+    </div>
+    <button id="resumeBtn" class="quiet">恢复项目</button>
+  </header>
+
+  <main>
+    <section id="uploadStep" class="welcome panel">
+      <div>
+        <span class="step">01 · 导入</span>
+        <h2>先找边界，暂不识别全文</h2>
+        <p>上传一个或多个 PDF。系统先读取低成本文本层，标出题号、跨页和疑似答案区域；扫描页会交给你手动框选。</p>
+        <ul class="guardrails">
+          <li>原文件和中间图像默认只在本次会话临时保存</li>
+          <li>高精度视觉识别只处理你选择的题目</li>
+          <li>识别不清的内容进入校对，不会猜测补全</li>
+        </ul>
+      </div>
+      <form id="uploadForm" class="upload-card">
+        <label>题集名称<input name="title" value="题目选编" maxlength="80"></label>
+        <label>科目<input name="subject" value="考研数学" maxlength="50"></label>
+        <label class="dropzone">选择 PDF（可多选）<input id="pdfInput" name="pdf" type="file" accept="application/pdf,.pdf" multiple required><span id="fileNames">尚未选择文件</span></label>
+        <button type="submit" class="primary">上传并识别边界</button>
+        <p id="uploadStatus" class="status" role="status"></p>
+      </form>
+    </section>
+
+    <section id="workspace" class="workspace hidden">
+      <aside class="sidebar panel">
+        <div class="step-head"><span class="step">02 · 选择与修正</span><span id="selectedCount" class="count"></span></div>
+        <div class="toolbar compact">
+          <button id="selectPageBtn">本页全选/取消</button>
+          <button id="mergeBtn">合并勾选</button>
+          <button id="splitBtn">拆分当前</button>
+          <button id="linkBtn">关联跨页</button>
+          <button id="graphicBtn">框选必要图形</button>
+        </div>
+        <div id="candidateList" class="candidate-list"></div>
+      </aside>
+
+      <section class="canvas-panel panel">
+        <div class="canvas-head">
+          <div><strong id="pageLabel">PDF 页面</strong><p id="pageMeta"></p></div>
+          <div class="page-nav"><button id="prevPage" aria-label="上一页">←</button><span id="pageIndex"></span><button id="nextPage" aria-label="下一页">→</button></div>
+        </div>
+        <div id="pageStage" class="page-stage">
+          <div id="pageWrap" class="page-wrap">
+            <img id="pageImage" alt="PDF 页面预览">
+            <div id="overlayLayer" class="overlay-layer"></div>
+          </div>
+        </div>
+        <p class="hint">拖动候选框可移动；拖动右下角圆点可缩放。所有坐标按 PDF 页面归一化保存。</p>
+      </section>
+
+      <aside class="review panel">
+        <div class="step-head"><span class="step">03 · 精识别与校对</span></div>
+        <div id="reviewEmpty" class="empty">选择一个候选题查看原题区域与重排结果。</div>
+        <div id="reviewForm" class="hidden">
+          <div class="comparison">
+            <div><span class="preview-label">原题区域</span><div class="source-preview"><img id="cropImage" alt="原题选区"></div></div>
+            <div><span class="preview-label">重排预览</span><div id="reflowPreview" class="reflow-preview"></div></div>
+          </div>
+          <div id="warnings" class="warnings"></div>
+          <label>最终题号<input id="questionNumber"></label>
+          <label>题干<textarea id="stem" rows="7" placeholder="无法识别时请人工录入，不要猜测"></textarea></label>
+          <label>选项（每行一个）<textarea id="options" rows="4"></textarea></label>
+          <label>小问（每行一个）<textarea id="subquestions" rows="4"></textarea></label>
+          <label>简单表格（每行用 | 分列，空行分表）<textarea id="tables" rows="4"></textarea></label>
+          <label>必要图形 bbox（每行 x0,y0,x1,y1）<textarea id="graphics" rows="3"></textarea></label>
+          <label class="check"><input id="uncertaintiesConfirmed" type="checkbox">低置信度片段已逐项核对</label>
+          <label class="check"><input id="subquestionsConfirmed" type="checkbox">小问数量已核对</label>
+          <label class="check"><input id="answerLeakReviewed" type="checkbox">已确认重排内容没有答案泄漏</label>
+          <div class="toolbar"><button id="saveReview" class="primary">保存校对</button><button id="recognizeCurrent">识别当前题</button></div>
+        </div>
+      </aside>
+    </section>
+
+    <section id="finishBar" class="finish-bar hidden">
+      <div>
+        <span class="step">04 · 重排与导出</span>
+        <div class="layout-controls">
+          <label>题号<select id="numbering"><option value="preserve">保留原题号</option><option value="continuous">连续题号</option></select></label>
+          <label>答题留白<input id="answerLines" type="number" min="1" max="20" value="5"></label>
+        </div>
+      </div>
+      <div class="finish-actions"><button id="recognizeSelected">仅识别选中题</button><button id="exportBtn" class="primary">导出 A4 黑白 PDF</button></div>
+    </section>
+  </main>
+
+  <dialog id="resumeDialog"><form method="dialog"><h2>恢复项目</h2><div id="projectList"></div><button>关闭</button></form></dialog>
+  <dialog id="splitDialog">
+    <form id="splitForm">
+      <h2>拆分当前候选</h2>
+      <p>选择切分线在候选框高度中的位置。</p>
+      <label>切分位置<input id="splitPosition" type="range" min="10" max="90" value="50"><output id="splitValue">50%</output></label>
+      <button type="button" id="cancelSplit">取消</button>
+      <button type="submit" class="primary">确认拆分</button>
+    </form>
+  </dialog>
+  <dialog id="retentionDialog"><form method="dialog"><h2>是否保留材料项目？</h2><p>最终 PDF 已生成。长期保存只会在你明确选择后发生。</p><a id="downloadPdf" class="download-link" href="#" download>下载最终 PDF</a><button value="keep_project" class="primary retain">保留完整项目</button><button value="final_pdf_only" class="retain">仅保留最终 PDF</button><button value="discard_all" class="danger retain">全部不保留</button></form></dialog>
+  <div id="toast" role="status" aria-live="polite"></div>
+  <script src="/assets/app.js"></script>
+</body>
+</html>

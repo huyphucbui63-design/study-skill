@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://study-skill.local/schema/question-builder-project.schema.json",
+  "title": "Kaoyan question builder project",
+  "type": "object",
+  "required": ["schema_version", "project_id", "revision", "source_pdfs", "pages", "candidates", "retention"],
+  "properties": {
+    "schema_version": {"const": "1.0"},
+    "project_id": {"type": "string", "pattern": "^[A-Za-z0-9-]+$"},
+    "revision": {"type": "integer", "minimum": 1},
+    "source_pdfs": {"type": "array", "items": {"type": "object", "required": ["name", "stored_path", "page_count"]}},
+    "pages": {"type": "array"},
+    "candidates": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "source_file", "pdf_page", "bbox", "confidence", "selected", "order"],
+        "properties": {
+          "id": {"type": "string"}, "source_file": {"type": "string"},
+          "pdf_page": {"type": "integer", "minimum": 1},
+          "book_page": {"type": ["string", "integer", "null"]},
+          "bbox": {"type": "array", "minItems": 4, "maxItems": 4, "items": {"type": "number", "minimum": 0, "maximum": 1}},
+          "confidence": {"type": "number", "minimum": 0, "maximum": 1},
+          "selected": {"type": "boolean"}, "order": {"type": "integer", "minimum": 1}
+        }
+      }
+    },
+    "retention": {
+      "type": "object", "required": ["status"],
+      "properties": {"status": {"enum": ["session_only", "keep_project", "final_pdf_only", "discard_all"]}}
+    }
+  }
+}

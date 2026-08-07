@@ -1,0 +1,6 @@
+interface:
+  display_name: "Kaoyan Question Builder"
+  short_description: "Select, reconstruct, review, and print questions from PDFs"
+  default_prompt: "Use $kaoyan-question-builder to turn selected questions from my PDFs into a reviewed, print-ready A4 question set."
+policy:
+  allow_implicit_invocation: true

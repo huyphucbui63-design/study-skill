@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://study-skill.local/schema/provider-config.schema.json",
+  "title": "Kaoyan vision provider configuration",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "base_url": {"type": "string", "pattern": "^https?://"},
+    "model": {"type": "string", "minLength": 1},
+    "api_key_env": {"type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"},
+    "timeout_seconds": {"type": "number", "minimum": 1, "maximum": 600},
+    "retries": {"type": "integer", "minimum": 0, "maximum": 8},
+    "image_batch_limit": {"type": "integer", "minimum": 1, "maximum": 20},
+    "high_resolution": {"type": "boolean"}
+  },
+  "not": {"anyOf": [{"required": ["api_key"]}, {"required": ["token"]}, {"required": ["key"]}]}
+}

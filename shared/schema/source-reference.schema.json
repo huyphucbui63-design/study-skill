@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://study-skill.local/schema/source-reference.schema.json",
+  "title": "Source PDF region",
+  "type": "object",
+  "required": ["source_file", "pdf_page", "bbox", "confidence"],
+  "properties": {
+    "source_file": {"type": "string", "minLength": 1},
+    "pdf_page": {"type": "integer", "minimum": 1},
+    "book_page": {"type": ["integer", "string", "null"]},
+    "bbox": {
+      "description": "Normalized PDF coordinates [x0,y0,x1,y1] in page space.",
+      "type": "array", "minItems": 4, "maxItems": 4,
+      "items": {"type": "number", "minimum": 0, "maximum": 1}
+    },
+    "confidence": {"type": "number", "minimum": 0, "maximum": 1},
+    "relation": {"enum": ["primary", "continuation", "shared_stem", "subquestion", "answer_suspect", "graphic"]}
+  }
+}

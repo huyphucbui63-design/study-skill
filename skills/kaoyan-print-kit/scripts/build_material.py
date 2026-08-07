@@ -484,14 +484,53 @@ def block_to_pdf(
         else:
             heading = f"[{block.get('level', '理解检测')}] {block.get('prompt', '')}"
         group: list[Any] = [Paragraph(rich_text(heading), styles["label"])]
+        for option in block.get("options", []):
+            if isinstance(option, dict):
+                option = f"{option.get('label', '')}. {option.get('text', '')}"
+            group.append(Paragraph(rich_text(option), styles["body"]))
+        for subquestion in block.get("subquestions", []):
+            if isinstance(subquestion, dict):
+                subquestion = f"{subquestion.get('number', '')} {subquestion.get('text', '')}"
+            group.append(Paragraph(rich_text(subquestion), styles["body"]))
+        for table_data in block.get("tables", []):
+            raw_rows = ([table_data.get("headers", [])] if table_data.get("headers") else []) + table_data.get("rows", [])
+            if not raw_rows:
+                continue
+            column_count = max(len(row) for row in raw_rows)
+            rows = [
+                [Paragraph(rich_text(row[index] if index < len(row) else ""), styles["body"]) for index in range(column_count)]
+                for row in raw_rows
+            ]
+            table = Table(rows, colWidths=[155 * mm / column_count] * column_count, repeatRows=1 if table_data.get("headers") else 0)
+            commands = [
+                ("BOX", (0, 0), (-1, -1), 0.6, palette["rule"]),
+                ("INNERGRID", (0, 0), (-1, -1), 0.35, palette["rule"]),
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ("LEFTPADDING", (0, 0), (-1, -1), 5),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 5),
+                ("TOPPADDING", (0, 0), (-1, -1), 4),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+            ]
+            if table_data.get("headers"):
+                commands.append(("BACKGROUND", (0, 0), (-1, 0), palette["light"]))
+            table.setStyle(TableStyle(commands))
+            group.extend([table, Spacer(1, 2 * mm)])
         image_value = block.get("image")
         if image_value:
             group.append(pdf_image(resolve_media(image_value, manifest_dir), 155 * mm, 120 * mm))
+        for graphic in block.get("graphics", []):
+            value = graphic.get("path") if isinstance(graphic, dict) else graphic
+            if value:
+                group.append(pdf_image(resolve_media(value, manifest_dir), 155 * mm, 120 * mm))
         group.extend(source_paragraph(block, styles))
-        items.append(KeepTogether(group))
         if variant == "practice":
-            items.extend([RuledSpace(block.get("answer_space_lines", 5), 166 * mm, palette["rule"]), Spacer(1, 3 * mm)])
+            items.append(KeepTogether([
+                *group,
+                RuledSpace(block.get("answer_space_lines", 5), 166 * mm, palette["rule"]),
+                Spacer(1, 3 * mm),
+            ]))
         else:
+            items.append(KeepTogether(group))
             for key, label in (
                 ("answer", "答案"), ("analysis", "解析"), ("error_cause", "错误原因"),
                 ("knowledge_points", "关联知识点"), ("rubric", "评分标准"),
@@ -844,6 +883,29 @@ def add_docx_block(document: Document, block: dict[str, Any], variant: str, mani
         else:
             label = f"[{block.get('level', '理解检测')}] {block.get('prompt', '')}"
         add_docx_text(document, label, style="Heading 2")
+        for option in block.get("options", []):
+            if isinstance(option, dict):
+                option = f"{option.get('label', '')}. {option.get('text', '')}"
+            add_docx_text(document, option)
+        for subquestion in block.get("subquestions", []):
+            if isinstance(subquestion, dict):
+                subquestion = f"{subquestion.get('number', '')} {subquestion.get('text', '')}"
+            add_docx_text(document, subquestion)
+        for table_data in block.get("tables", []):
+            raw_rows = ([table_data.get("headers", [])] if table_data.get("headers") else []) + table_data.get("rows", [])
+            if not raw_rows:
+                continue
+            column_count = max(len(row) for row in raw_rows)
+            table = document.add_table(rows=0, cols=column_count)
+            for row_index, values in enumerate(raw_rows):
+                cells = table.add_row().cells
+                for index, cell in enumerate(cells):
+                    run = cell.paragraphs[0].add_run(str(values[index] if index < len(values) else ""))
+                    set_docx_font(run)
+                    if row_index == 0 and table_data.get("headers"):
+                        run.bold = True
+                        set_cell_shading(cell, light_fill)
+            set_table_geometry(table, [155 / column_count] * column_count)
         if block.get("image"):
             add_docx_picture(
                 document,
@@ -851,6 +913,10 @@ def add_docx_block(document: Document, block: dict[str, Any], variant: str, mani
                 155 * mm,
                 120 * mm,
             )
+        for graphic in block.get("graphics", []):
+            value = graphic.get("path") if isinstance(graphic, dict) else graphic
+            if value:
+                add_docx_picture(document, resolve_media(value, manifest_dir), 155 * mm, 120 * mm)
         add_source_docx(document, block)
         if variant == "practice":
             for _ in range(max(1, min(int(block.get("answer_space_lines", 5)), 20))):

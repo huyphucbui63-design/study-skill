@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "High precision question transcription",
+  "type": "object",
+  "required": ["stem", "options", "subquestions", "uncertainties", "suspected_answer_leak"],
+  "properties": {
+    "stem": {"type": "string"},
+    "options": {"type": "array", "items": {"oneOf": [{"type": "string"}, {"type": "object"}]}},
+    "subquestions": {"type": "array", "items": {"oneOf": [{"type": "string"}, {"type": "object"}]}},
+    "tables": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["rows"],
+        "properties": {
+          "headers": {"type": "array", "items": {"type": "string"}},
+          "rows": {"type": "array", "items": {"type": "array", "items": {"type": "string"}}}
+        }
+      }
+    },
+    "uncertainties": {"type": "array", "items": {"type": "object", "required": ["fragment", "reason", "confidence"]}},
+    "suspected_answer_leak": {"type": "boolean"},
+    "graphics": {"type": "array", "description": "Suggested normalized boxes for necessary data graphics."},
+    "chapter": {"type": ["string", "null"]}
+  }
+}
