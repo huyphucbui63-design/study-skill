@@ -9,3 +9,17 @@ testdata/
 qa-*/
 *.tmp
 *.log
+
+# User-owned study data, uploads, drafts, generated materials, and local secrets.
+/data/
+/projects/
+/tmp/
+/outputs/
+.env
+.env.*
+!.env.example
+*.local.json
+
+# Browser test artifacts.
+/test-results/
+/playwright-report/
