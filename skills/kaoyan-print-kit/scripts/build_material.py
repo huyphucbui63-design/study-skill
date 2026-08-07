@@ -40,10 +40,13 @@ from reportlab.platypus import (
     Table,
     TableStyle,
 )
+from reportlab.platypus.tableofcontents import TableOfContents
 
 
 MODES = {"memorization", "mistakes", "diagnostic"}
 PRINT_PROFILES = {"bw", "color"}
+DENSITIES = {"compact", "standard", "spacious"}
+IMAGE_TARGET_DPI = 150.0
 PDF_FONT_CANDIDATES = (
     (Path("C:/Windows/Fonts/Deng.ttf"), Path("C:/Windows/Fonts/Dengb.ttf")),
     (Path("C:/Windows/Fonts/NotoSansSC-Regular.ttf"), Path("C:/Windows/Fonts/NotoSansSC-Bold.ttf")),
@@ -82,6 +85,8 @@ def load_manifest(path: Path) -> dict[str, Any]:
         raise ValueError(f"Unsupported mode: {data['mode']}")
     if data["print_profile"] not in PRINT_PROFILES:
         raise ValueError("print_profile must be bw or color")
+    if data.get("density", "standard") not in DENSITIES:
+        raise ValueError("density must be compact, standard, or spacious")
     if not isinstance(data["sections"], list):
         raise ValueError("sections must be a list")
     return data
@@ -184,9 +189,14 @@ def pdf_palette(profile: str) -> dict[str, colors.Color]:
     }
 
 
-def pdf_styles(profile: str, regular: str, bold: str) -> dict[str, ParagraphStyle]:
+def pdf_styles(profile: str, regular: str, bold: str, density: str = "standard") -> dict[str, ParagraphStyle]:
     base = getSampleStyleSheet()
     palette = pdf_palette(profile)
+    density_tokens = {
+        "compact": {"body": 9.5, "leading": 13.2, "after": 1.8, "small": 7.5, "label": 10, "section": 12.5},
+        "standard": {"body": 10.5, "leading": 15.2, "after": 2.5, "small": 8, "label": 10.5, "section": 13},
+        "spacious": {"body": 11, "leading": 16.8, "after": 3.2, "small": 8.5, "label": 11, "section": 13.5},
+    }[density]
     return {
         "title": ParagraphStyle(
             "StudyTitle", parent=base["Title"], fontName=bold, fontSize=16,
@@ -199,33 +209,80 @@ def pdf_styles(profile: str, regular: str, bold: str) -> dict[str, ParagraphStyl
             spaceAfter=5 * mm,
         ),
         "section": ParagraphStyle(
-            "StudySection", parent=base["Heading2"], fontName=bold, fontSize=13,
+            "StudySection", parent=base["Heading2"], fontName=bold, fontSize=density_tokens["section"],
             leading=18, textColor=palette["primary"], spaceBefore=4 * mm,
             spaceAfter=2.5 * mm, keepWithNext=True,
         ),
         "body": ParagraphStyle(
-            "StudyBody", parent=base["BodyText"], fontName=regular, fontSize=10.5,
-            leading=15.2, textColor=colors.black, spaceAfter=2.5 * mm,
+            "StudyBody", parent=base["BodyText"], fontName=regular, fontSize=density_tokens["body"],
+            leading=density_tokens["leading"], textColor=colors.black, spaceAfter=density_tokens["after"] * mm,
             wordWrap="CJK",
         ),
         "small": ParagraphStyle(
-            "StudySmall", parent=base["BodyText"], fontName=regular, fontSize=8,
+            "StudySmall", parent=base["BodyText"], fontName=regular, fontSize=density_tokens["small"],
             leading=11, textColor=palette["secondary"], spaceAfter=1.5 * mm,
             wordWrap="CJK",
         ),
         "label": ParagraphStyle(
-            "StudyLabel", parent=base["BodyText"], fontName=bold, fontSize=10.5,
+            "StudyLabel", parent=base["BodyText"], fontName=bold, fontSize=density_tokens["label"],
             leading=15, textColor=palette["primary"], spaceAfter=1.5 * mm,
+            wordWrap="CJK",
+        ),
+        "toc": ParagraphStyle(
+            "StudyToc", parent=base["BodyText"], fontName=regular, fontSize=10,
+            leading=15, textColor=palette["primary"], leftIndent=4 * mm,
+            firstLineIndent=-4 * mm, wordWrap="CJK",
+        ),
+        "origin": ParagraphStyle(
+            "StudyOrigin", parent=base["BodyText"], fontName=bold, fontSize=density_tokens["small"] + 0.5,
+            leading=12, textColor=palette["secondary"], spaceAfter=1 * mm,
             wordWrap="CJK",
         ),
     }
 
 
-def pdf_image(path: Path, max_width: float = 160 * mm, max_height: float = 170 * mm) -> Image:
+class KaoyanDocTemplate(BaseDocTemplate):
+    """Collect section headings for a deterministic PDF table of contents."""
+
+    def afterFlowable(self, flowable: Any) -> None:
+        bookmark = getattr(flowable, "_bookmarkName", None)
+        if not bookmark:
+            return
+        title = flowable.getPlainText()
+        self.canv.bookmarkPage(bookmark)
+        self.canv.addOutlineEntry(title, bookmark, level=0, closed=False)
+        self.notify("TOCEntry", (0, title, self.page, bookmark))
+
+
+def image_display_size(
+    path: Path,
+    max_width: float,
+    max_height: float,
+    target_dpi: float = IMAGE_TARGET_DPI,
+) -> tuple[float, float]:
     with PILImage.open(path) as image:
         width, height = image.size
-    scale = min(max_width / width, max_height / height, 1.0)
-    return Image(str(path), width=width * scale, height=height * scale)
+    if width <= 0 or height <= 0:
+        raise ValueError(f"Image has invalid pixel dimensions: {path}")
+    width_points = width * 72.0 / target_dpi
+    height_points = height * 72.0 / target_dpi
+    scale = min(max_width / width_points, max_height / height_points, 1.0)
+    return width_points * scale, height_points * scale
+
+
+def pdf_image(path: Path, max_width: float = 160 * mm, max_height: float = 170 * mm) -> Image:
+    width, height = image_display_size(path, max_width, max_height)
+    return Image(str(path), width=width, height=height)
+
+
+def add_docx_picture(
+    document: Document,
+    path: Path,
+    max_width: float = 160 * mm,
+    max_height: float = 170 * mm,
+) -> None:
+    width, height = image_display_size(path, max_width, max_height)
+    document.add_picture(str(path), width=Pt(width), height=Pt(height))
 
 
 def source_paragraph(block: dict[str, Any], styles: dict[str, ParagraphStyle]) -> list[Any]:
@@ -244,6 +301,80 @@ def answer_panel(label: str, text: Any, styles: dict[str, ParagraphStyle], palet
         ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
     ]))
     return table
+
+
+def memory_structure_pdf(
+    block: dict[str, Any], styles: dict[str, ParagraphStyle], palette: dict[str, colors.Color]
+) -> list[Any]:
+    kind = block["type"]
+    title = Paragraph(rich_text(block.get("title", "")), styles["label"])
+    prefix: list[Any] = [title]
+    if block.get("origin_label"):
+        prefix.append(Paragraph(rich_text(block["origin_label"]), styles["origin"]))
+    if block.get("source"):
+        prefix.append(Paragraph(f"来源：{rich_text(block['source'])}", styles["small"]))
+    if kind == "comparison":
+        headers = block.get("headers", [])
+        rows = block.get("rows", [])
+        if not headers or not rows or any(len(row) != len(headers) for row in rows):
+            raise ValueError("comparison requires equal-width headers and rows")
+        width = 166 * mm / len(headers)
+        data = [[Paragraph(rich_text(cell), styles["origin"]) for cell in headers]]
+        data.extend([Paragraph(rich_text(cell), styles["body"]) for cell in row] for row in rows)
+        table = Table(data, colWidths=[width] * len(headers), repeatRows=1)
+        table.setStyle(TableStyle([
+            ("BOX", (0, 0), (-1, -1), 0.7, palette["rule"]),
+            ("INNERGRID", (0, 0), (-1, -1), 0.35, palette["rule"]),
+            ("BACKGROUND", (0, 0), (-1, 0), palette["light"]),
+            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+            ("LEFTPADDING", (0, 0), (-1, -1), 6),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+            ("TOPPADDING", (0, 0), (-1, -1), 5),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+        ]))
+        return [*prefix, table, Spacer(1, 2.5 * mm)]
+    if kind in {"process", "timeline"}:
+        items = block.get("items", [])
+        if not items:
+            raise ValueError(f"{kind} requires items")
+        rows = []
+        for index, item in enumerate(items, 1):
+            marker = str(index) if kind == "process" else "T" + str(index)
+            rows.append([Paragraph(f"<b>{marker}</b>", styles["label"]), Paragraph(rich_text(item), styles["body"])])
+        table = Table(rows, colWidths=[16 * mm, 150 * mm])
+        table.setStyle(TableStyle([
+            ("BOX", (0, 0), (-1, -1), 0.6, palette["rule"]),
+            ("LINEBELOW", (0, 0), (-1, -2), 0.35, palette["rule"]),
+            ("BACKGROUND", (0, 0), (0, -1), palette["light"]),
+            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+            ("ALIGN", (0, 0), (0, -1), "CENTER"),
+            ("LEFTPADDING", (0, 0), (-1, -1), 6),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+            ("TOPPADDING", (0, 0), (-1, -1), 5),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+        ]))
+        return [*prefix, KeepTogether(table), Spacer(1, 2.5 * mm)]
+    relations = block.get("relations", [])
+    if not relations:
+        raise ValueError("relationship requires relations")
+    rows = [[
+        Paragraph(rich_text(item.get("from")), styles["body"]),
+        Paragraph(rich_text(item.get("relation")), styles["origin"]),
+        Paragraph(rich_text(item.get("to")), styles["body"]),
+    ] for item in relations]
+    table = Table(rows, colWidths=[66 * mm, 34 * mm, 66 * mm])
+    table.setStyle(TableStyle([
+        ("BOX", (0, 0), (-1, -1), 0.6, palette["rule"]),
+        ("INNERGRID", (0, 0), (-1, -1), 0.35, palette["rule"]),
+        ("BACKGROUND", (1, 0), (1, -1), palette["light"]),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("ALIGN", (1, 0), (1, -1), "CENTER"),
+        ("LEFTPADDING", (0, 0), (-1, -1), 6),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+        ("TOPPADDING", (0, 0), (-1, -1), 5),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+    ]))
+    return [*prefix, table, Spacer(1, 2.5 * mm)]
 
 
 def block_to_pdf(
@@ -292,6 +423,54 @@ def block_to_pdf(
         if block.get("term"):
             items.append(Paragraph(rich_text(block["term"]), styles["label"]))
         items.extend([table, Spacer(1, 2.5 * mm), *source_paragraph(block, styles)])
+    elif kind == "knowledge_point":
+        importance = block.get("importance")
+        if importance not in {"A", "B", "C"}:
+            raise ValueError("knowledge_point importance must be A, B, or C")
+        markers = f"[{importance}]" + (" [R]" if block.get("personal_weak") else "")
+        heading = Table([[
+            Paragraph(markers, styles["label"]),
+            Paragraph(rich_text(block.get("title")), styles["label"]),
+        ]], colWidths=[28 * mm, 138 * mm])
+        heading.setStyle(TableStyle([
+            ("BOX", (0, 0), (-1, -1), 0.8, palette["primary"]),
+            ("BACKGROUND", (0, 0), (0, 0), palette["light"]),
+            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+            ("ALIGN", (0, 0), (0, 0), "CENTER"),
+            ("LEFTPADDING", (0, 0), (-1, -1), 7),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 7),
+            ("TOPPADDING", (0, 0), (-1, -1), 6),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+        ]))
+        heading.keepWithNext = True
+        heading_gap = Spacer(1, 1.5 * mm)
+        heading_gap.keepWithNext = True
+        items.extend([heading, heading_gap])
+        for segment in block.get("segments", []):
+            label = segment.get("origin_label") or segment.get("origin")
+            source_text = ""
+            if segment.get("source"):
+                source_text = f'<br/><font size="8" color="{palette["secondary"].hexval()}">来源：{rich_text(segment["source"])}</font>'
+            fill = colors.white if segment.get("origin") in {"source_text", "user_note"} else palette["light"]
+            panel_style = ParagraphStyle(
+                f"KnowledgePanel-{segment.get('origin', 'unknown')}", parent=styles["body"],
+                backColor=fill, borderColor=palette["accent"], borderWidth=0.7,
+                borderPadding=(6, 7, 6, 8), spaceAfter=1.5 * mm,
+                leftIndent=7 * mm, rightIndent=7 * mm, splitLongWords=True,
+            )
+            panel = Paragraph(
+                f"<b>{rich_text(label)}</b><br/>{rich_text(segment.get('text'))}{source_text}",
+                panel_style,
+            )
+            items.extend([panel, Spacer(1, 1.5 * mm)])
+        if block.get("grading_evidence"):
+            items.append(Paragraph(f"分级依据：{rich_text(block['grading_evidence'])}", styles["small"]))
+        items.append(Spacer(1, 2.5 * mm))
+    elif kind in {"comparison", "process", "timeline", "relationship"}:
+        items.extend(memory_structure_pdf(block, styles, palette))
+    elif kind == "recall":
+        items.append(Paragraph(rich_text(block.get("label", "主动回忆")), styles["origin"]))
+        items.extend([RuledSpace(block.get("lines", 3), 166 * mm, palette["rule"]), Spacer(1, 3 * mm)])
     elif kind == "image":
         image_path = resolve_media(block["path"], manifest_dir)
         group = [pdf_image(image_path)]
@@ -330,7 +509,7 @@ def block_to_pdf(
 
 def build_pdf(manifest: dict[str, Any], variant: str, output: Path, manifest_dir: Path) -> None:
     regular, bold = register_pdf_fonts()
-    styles = pdf_styles(manifest["print_profile"], regular, bold)
+    styles = pdf_styles(manifest["print_profile"], regular, bold, manifest.get("density", "standard"))
     palette = pdf_palette(manifest["print_profile"])
     page_width, page_height = A4
     inner, outer, top, bottom = 18 * mm, 12 * mm, 14 * mm, 15 * mm
@@ -347,7 +526,7 @@ def build_pdf(manifest: dict[str, Any], variant: str, output: Path, manifest_dir
     even_frame = Frame(outer, bottom, page_width - inner - outer, page_height - top - bottom, id="even")
     odd = PageTemplate(id="Odd", frames=[odd_frame], onPage=decorate, autoNextPageTemplate="Even")
     even = PageTemplate(id="Even", frames=[even_frame], onPage=decorate, autoNextPageTemplate="Odd")
-    doc = BaseDocTemplate(str(output), pagesize=A4, pageTemplates=[odd, even], title=manifest["title"], author="Kaoyan Print Kit")
+    doc = KaoyanDocTemplate(str(output), pagesize=A4, pageTemplates=[odd, even], title=manifest["title"], author="Kaoyan Print Kit")
 
     variant_labels = {"study": "背诵版", "practice": "练习版", "answers": "解析版"}
     story: list[Any] = [
@@ -357,13 +536,20 @@ def build_pdf(manifest: dict[str, Any], variant: str, output: Path, manifest_dir
             styles["meta"],
         ),
     ]
-    for section in manifest["sections"]:
+    if manifest.get("include_toc"):
+        story.append(Paragraph("目录", styles["section"]))
+        toc = TableOfContents()
+        toc.levelStyles = [styles["toc"]]
+        story.extend([toc, PageBreak()])
+    for section_index, section in enumerate(manifest["sections"]):
         if section.get("page_break_before"):
             story.append(PageBreak())
-        story.append(Paragraph(rich_text(section.get("title", "")), styles["section"]))
+        heading = Paragraph(rich_text(section.get("title", "")), styles["section"])
+        heading._bookmarkName = f"section-{section.get('id') or section_index + 1}"
+        story.append(heading)
         for block in section.get("blocks", []):
             story.extend(block_to_pdf(block, variant, styles, palette, manifest_dir))
-    doc.build(story)
+    doc.multiBuild(story)
     if len(PdfReader(str(output)).pages) < 1:
         raise RuntimeError(f"Generated PDF has no pages: {output}")
 
@@ -438,6 +624,23 @@ def add_page_field(paragraph: Any) -> None:
     paragraph._p.append(field)
 
 
+def add_toc_field(paragraph: Any) -> None:
+    begin = OxmlElement("w:fldChar")
+    begin.set(qn("w:fldCharType"), "begin")
+    instruction = OxmlElement("w:instrText")
+    instruction.set(qn("xml:space"), "preserve")
+    instruction.text = ' TOC \\o "1-1" \\h \\z \\u '
+    separate = OxmlElement("w:fldChar")
+    separate.set(qn("w:fldCharType"), "separate")
+    placeholder = OxmlElement("w:t")
+    placeholder.text = "打开文档后更新目录域以显示页码。"
+    end = OxmlElement("w:fldChar")
+    end.set(qn("w:fldCharType"), "end")
+    run = OxmlElement("w:r")
+    run.extend([begin, instruction, separate, placeholder, end])
+    paragraph._p.append(run)
+
+
 def configure_docx(document: Document, manifest: dict[str, Any]) -> None:
     section = document.sections[0]
     section.page_width, section.page_height = Mm(210), Mm(297)
@@ -446,16 +649,21 @@ def configure_docx(document: Document, manifest: dict[str, Any]) -> None:
     mirror = OxmlElement("w:mirrorMargins")
     section._sectPr.append(mirror)
 
+    density = {
+        "compact": {"body": 9.5, "after": 3, "line": 1.25, "title": 15, "h1": 12.5, "h2": 10},
+        "standard": {"body": 10.5, "after": 5, "line": 1.45, "title": 16, "h1": 13, "h2": 11},
+        "spacious": {"body": 11, "after": 7, "line": 1.6, "title": 17, "h1": 13.5, "h2": 11.5},
+    }[manifest.get("density", "standard")]
     normal = document.styles["Normal"]
     normal.font.name = DOCX_FONT
-    normal.font.size = Pt(10.5)
+    normal.font.size = Pt(density["body"])
     normal._element.rPr.rFonts.set(qn("w:eastAsia"), DOCX_FONT)
-    normal.paragraph_format.space_after = Pt(5)
-    normal.paragraph_format.line_spacing = 1.45
+    normal.paragraph_format.space_after = Pt(density["after"])
+    normal.paragraph_format.line_spacing = density["line"]
     for style_name, size, color, bold in (
-        ("Title", 16, "17324D", True),
-        ("Heading 1", 13, "17324D", True),
-        ("Heading 2", 11, "35606F", True),
+        ("Title", density["title"], "17324D", True),
+        ("Heading 1", density["h1"], "17324D", True),
+        ("Heading 2", density["h2"], "35606F", True),
     ):
         style = document.styles[style_name]
         style.font.name = DOCX_FONT
@@ -466,7 +674,7 @@ def configure_docx(document: Document, manifest: dict[str, Any]) -> None:
 
     list_style = document.styles["List Bullet"]
     list_style.font.name = DOCX_FONT
-    list_style.font.size = Pt(10.5)
+    list_style.font.size = Pt(density["body"])
     list_style._element.rPr.rFonts.set(qn("w:eastAsia"), DOCX_FONT)
     list_style.paragraph_format.left_indent = Mm(9.5)
     list_style.paragraph_format.first_line_indent = Mm(-4.75)
@@ -521,9 +729,111 @@ def add_docx_block(document: Document, block: dict[str, Any], variant: str, mani
                 set_docx_font(run)
         set_table_geometry(table, [25, 141])
         add_source_docx(document, block)
+    elif kind == "knowledge_point":
+        importance = block.get("importance")
+        if importance not in {"A", "B", "C"}:
+            raise ValueError("knowledge_point importance must be A, B, or C")
+        heading = document.add_table(rows=1, cols=2)
+        heading.style = "Table Grid"
+        set_table_geometry(heading, [28, 138])
+        set_cell_shading(heading.cell(0, 0), light_fill)
+        marker = f"[{importance}]" + (" [R]" if block.get("personal_weak") else "")
+        for cell, value in zip(heading.rows[0].cells, (marker, block.get("title", ""))):
+            run = cell.paragraphs[0].add_run(str(value))
+            run.bold = True
+            set_docx_font(run)
+            cell.paragraphs[0].paragraph_format.keep_with_next = True
+        heading.cell(0, 0).paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
+        for segment in block.get("segments", []):
+            panel = document.add_table(rows=1, cols=1)
+            panel.style = "Table Grid"
+            set_table_geometry(panel, [166])
+            if segment.get("origin") not in {"source_text", "user_note"}:
+                set_cell_shading(panel.cell(0, 0), light_fill)
+            paragraph = panel.cell(0, 0).paragraphs[0]
+            label_run = paragraph.add_run(str(segment.get("origin_label") or segment.get("origin")))
+            label_run.bold = True
+            label_run.font.size = Pt(8.5)
+            set_docx_font(label_run)
+            paragraph.add_run("\n")
+            content_run = paragraph.add_run(str(segment.get("text", "")))
+            set_docx_font(content_run)
+            if segment.get("source"):
+                source_run = paragraph.add_run(f"\n来源：{segment['source']}")
+                source_run.font.size = Pt(8)
+                source_run.font.color.rgb = RGBColor(100, 100, 100)
+                set_docx_font(source_run)
+        if block.get("grading_evidence"):
+            paragraph = add_docx_text(document, f"分级依据：{block['grading_evidence']}")
+            for run in paragraph.runs:
+                run.font.size = Pt(8)
+                run.font.color.rgb = RGBColor(100, 100, 100)
+    elif kind in {"comparison", "process", "timeline", "relationship"}:
+        add_docx_text(document, block.get("title", ""), style="Heading 2")
+        if block.get("origin_label"):
+            paragraph = add_docx_text(document, block["origin_label"], bold=True)
+            for run in paragraph.runs:
+                run.font.size = Pt(8.5)
+        if block.get("source"):
+            add_source_docx(document, block)
+        if kind == "comparison":
+            headers = block.get("headers", [])
+            rows = block.get("rows", [])
+            if not headers or not rows or any(len(row) != len(headers) for row in rows):
+                raise ValueError("comparison requires equal-width headers and rows")
+            table = document.add_table(rows=1, cols=len(headers))
+            table.style = "Table Grid"
+            for cell, value in zip(table.rows[0].cells, headers):
+                set_cell_shading(cell, light_fill)
+                run = cell.paragraphs[0].add_run(str(value))
+                run.bold = True
+                set_docx_font(run)
+            for row in rows:
+                cells = table.add_row().cells
+                for cell, value in zip(cells, row):
+                    run = cell.paragraphs[0].add_run(str(value))
+                    set_docx_font(run)
+            set_table_geometry(table, [166 / len(headers)] * len(headers))
+        elif kind in {"process", "timeline"}:
+            items = block.get("items", [])
+            if not items:
+                raise ValueError(f"{kind} requires items")
+            table = document.add_table(rows=0, cols=2)
+            table.style = "Table Grid"
+            for index, value in enumerate(items, 1):
+                cells = table.add_row().cells
+                set_cell_shading(cells[0], light_fill)
+                marker = str(index) if kind == "process" else f"T{index}"
+                for cell, text in zip(cells, (marker, value)):
+                    run = cell.paragraphs[0].add_run(str(text))
+                    set_docx_font(run)
+                cells[0].paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
+            set_table_geometry(table, [16, 150])
+        else:
+            relations = block.get("relations", [])
+            if not relations:
+                raise ValueError("relationship requires relations")
+            table = document.add_table(rows=0, cols=3)
+            table.style = "Table Grid"
+            for relation in relations:
+                cells = table.add_row().cells
+                set_cell_shading(cells[1], light_fill)
+                values = (relation.get("from", ""), relation.get("relation", ""), relation.get("to", ""))
+                for cell, value in zip(cells, values):
+                    run = cell.paragraphs[0].add_run(str(value))
+                    set_docx_font(run)
+                cells[1].paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
+            set_table_geometry(table, [66, 34, 66])
+    elif kind == "recall":
+        paragraph = add_docx_text(document, block.get("label", "主动回忆"), bold=True)
+        paragraph.paragraph_format.keep_with_next = True
+        for _ in range(max(1, min(int(block.get("lines", 3)), 12))):
+            line = document.add_paragraph()
+            line.paragraph_format.space_after = Pt(7)
+            add_bottom_border(line)
     elif kind == "image":
         image_path = resolve_media(block["path"], manifest_dir)
-        document.add_picture(str(image_path), width=Mm(160))
+        add_docx_picture(document, image_path)
         if block.get("caption"):
             paragraph = add_docx_text(document, block["caption"])
             paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
@@ -535,7 +845,12 @@ def add_docx_block(document: Document, block: dict[str, Any], variant: str, mani
             label = f"[{block.get('level', '理解检测')}] {block.get('prompt', '')}"
         add_docx_text(document, label, style="Heading 2")
         if block.get("image"):
-            document.add_picture(str(resolve_media(block["image"], manifest_dir)), width=Mm(155))
+            add_docx_picture(
+                document,
+                resolve_media(block["image"], manifest_dir),
+                155 * mm,
+                120 * mm,
+            )
         add_source_docx(document, block)
         if variant == "practice":
             for _ in range(max(1, min(int(block.get("answer_space_lines", 5)), 20))):
@@ -571,6 +886,11 @@ def build_docx(manifest: dict[str, Any], variant: str, output: Path, manifest_di
     variant_labels = {"study": "背诵版", "practice": "练习版", "answers": "解析版"}
     meta = add_docx_text(document, f"{manifest['subject']} · {manifest['chapter']} · {variant_labels[variant]}")
     meta.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    if manifest.get("include_toc"):
+        add_docx_text(document, "目录", style="Heading 1")
+        toc = document.add_paragraph()
+        add_toc_field(toc)
+        document.add_page_break()
     for section_index, section in enumerate(manifest["sections"]):
         if section.get("page_break_before") and section_index:
             document.add_page_break()

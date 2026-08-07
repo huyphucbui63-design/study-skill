@@ -20,6 +20,6 @@ qa-*/
 !.env.example
 *.local.json
 
-# Browser test artifacts.
+# Local QA and browser test artifacts.
 /test-results/
 /playwright-report/

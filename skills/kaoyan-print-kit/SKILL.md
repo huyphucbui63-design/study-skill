@@ -19,6 +19,7 @@ Turn mixed study sources into accurate, printable learning materials. Reuse the 
 ## Route By Mode
 
 - For `memorization`, read `references/memorization.md`.
+- When memorization requires knowledge-point selection, traceable A/B/C importance, independent R weakness markers, origin labels, or both color and black-and-white editions, use the sibling `kaoyan-memorization-builder` workflow. Continue using this skill's generator as its shared layout engine.
 - For `mistakes`, read `references/mistakes.md`.
 - For `diagnostic`, read `references/diagnostics.md`.
 - Always read `references/layout.md` before authoring the manifest.

@@ -1,0 +1,6 @@
+interface:
+  display_name: "Kaoyan Memorization Builder"
+  short_description: "Build traceable graded memorization materials"
+  default_prompt: "Use $kaoyan-memorization-builder to turn my sources into reviewed color and black-and-white memorization materials."
+policy:
+  allow_implicit_invocation: true

@@ -1,5 +1,7 @@
 # Memorization Workflow
 
+Use this lightweight workflow for direct formula, definition, theorem, timeline, vocabulary, or mixed-content layout. Route requests that need knowledge selection, traceable grading evidence, independent A/B/C and R markers, explicit source/AI/user provenance, or paired color and grayscale editions through the sibling `kaoyan-memorization-builder`; it converts its reviewed project back into this generator's manifest.
+
 ## Required Inputs
 
 Collect subject, chapter, scope, content type, source authority, desired density, annotation space, and print profile.

@@ -8,12 +8,14 @@
 - 错题与题目摘取：从 PDF、Word 或图片中选取指定页码、题号或关键词内容，生成练习版和解析版。
 - 理解与检测：解释知识点，并生成覆盖回忆、辨析、解释、应用、迁移和纠错的检测题。
 - 打印质检：检查来源对应、公式与图形、答案隔离、中文字体、分页、裁切和黑白打印效果。
+- 背诵材料构建：在保持原章节与知识点顺序的前提下，区分来源原文、AI 内容和用户补充，使用独立的 A/B/C 重要度与 R 薄弱点标签，生成彩色学习版和黑白兼容版。
 
 ## 仓库结构
 
 ```text
 skills/kaoyan-print-kit/       Skill 主体
 skills/kaoyan-strategy-advisor/ 阶段策略分析与授权历史
+skills/kaoyan-memorization-builder/ 知识点选择、分级、证据链和双版本生成
 agents/study-pdf-reviewer.toml 可选的只读质检 Agent
 ```
 
@@ -56,3 +58,30 @@ $kaoyan-print-kit 把这些定义整理成适合黑白打印的背诵 PDF 和 DO
 Skill 会先确认黑白或彩色打印、科目章节、内容范围和不确定的 OCR 片段。在用户确认结构后生成草稿、渲染预览、完成逐页质检，再交付最终 PDF 与 DOCX。
 
 生成器使用 Python，并依赖 `Pillow`、`python-docx`、`pypdf` 和 `reportlab`。PDF 需要可嵌入的简体中文 TrueType 字体；生成器会自动查找 Windows 等线字体或 Noto Sans CJK。也可通过 `KAOYAN_FONT_REGULAR`、`KAOYAN_FONT_BOLD` 和 `KAOYAN_DOCX_FONT` 指定字体。
+
+## Kaoyan Memorization Builder
+
+将 `skills/kaoyan-memorization-builder` 与 `skills/kaoyan-print-kit` 一起安装。新 Skill 复用 print-kit 的 PDF/DOCX 排版内核，不复制公式、字体和渲染代码。
+
+先从 PDF、DOCX、图片或 UTF-8 文本建立待确认项目：
+
+```powershell
+python skills/kaoyan-memorization-builder/scripts/extract_sources.py --title "标题" --subject "科目" --output project.json source.pdf
+```
+
+也可用可重复的 `--text "用户原始文本"` 直接加入本次输入；脚本会原样保存，不把它改写成 AI 概括。
+
+逐条核对来源、原文、公式、顺序、A/B/C、R 和 AI 标记后，由用户明确确认项目，再生成彩色与黑白版本：
+
+```powershell
+python skills/kaoyan-memorization-builder/scripts/build_memorization.py project.json --output-dir outputs/memorization
+```
+
+正式构建会分别检查 A/B/C 与 R 的确认状态，拒绝待校对片段、越权重排、缺失或哈希已变化的来源，以及缺少来源引用的原文。彩色和黑白的四个文件会先在临时区全部验证，再发布到输出目录。`schemas/memorization-project.schema.json` 是项目数据契约；真实来源、项目、输出和临时文件默认被 Git 忽略。
+
+生成后可执行 PDF/DOCX 结构质检；含图片时默认要求至少 150 有效 DPI：
+
+```powershell
+python skills/kaoyan-memorization-builder/scripts/qa_material.py outputs/memorization/bw-study.pdf --min-image-dpi 150
+python skills/kaoyan-memorization-builder/scripts/qa_docx.py outputs/memorization/color-study.docx outputs/memorization/bw-study.docx --min-image-dpi 150
+```
