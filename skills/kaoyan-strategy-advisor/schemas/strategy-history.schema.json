@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://study-skill.local/schema/strategy-history.schema.json",
+  "title": "Kaoyan strategy history event",
+  "type": "object",
+  "required": ["schema_version", "event_id", "event_type", "created_at"],
+  "properties": {
+    "schema_version": {"const": "1.0"},
+    "event_id": {"type": "string", "minLength": 1},
+    "event_type": {"enum": ["strategy_analysis", "strategy_state_analysis", "strategy_decision"]},
+    "created_at": {"type": "string", "format": "date-time"},
+    "analysis_id": {"type": "string"},
+    "recommendation_id": {"type": "string"},
+    "decision_status": {"enum": ["accepted", "rejected", "undecided"]},
+    "decided_at": {"type": "string", "format": "date-time"},
+    "review_at": {"type": ["string", "null"]},
+    "status_snapshot": {"type": "object"},
+    "user_question": {"type": "string"},
+    "analysis_summary": {"type": "string"},
+    "recommendations": {"type": "array"},
+    "save_authorization": {"type": "object"}
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"event_type": {"const": "strategy_decision"}}},
+      "then": {"required": ["analysis_id", "recommendation_id", "decision_status", "decided_at"]}
+    },
+    {
+      "if": {"properties": {"event_type": {"const": "strategy_analysis"}}},
+      "then": {"required": ["analysis_id", "status_snapshot", "user_question", "analysis_summary", "recommendations", "save_authorization"]}
+    }
+  ]
+}
