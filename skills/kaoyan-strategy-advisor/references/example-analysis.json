@@ -1,0 +1,26 @@
+{
+  "status_snapshot": {
+    "as_of": "2026-08-07",
+    "stage": "强化阶段",
+    "summary": "脱敏示例：数学练习反馈稳定，专业课回忆证据较少。",
+    "source_refs": ["current_question", "journey.latest:2026-08-06"]
+  },
+  "user_question": "脱敏示例：下阶段各科投入比例是否需要调整？",
+  "analysis_summary": "现有证据支持先小幅调整，并在一个观察周期后复评。",
+  "recommendations": [
+    {
+      "recommendation_id": "rec-subject-ratio",
+      "category": "subject_allocation",
+      "suggestion": "将专业课投入占比上调一个小区间，数学保持当前区间。",
+      "evidence_refs": ["current_question", "journey.latest:2026-08-06"],
+      "confidence": "medium",
+      "confidence_reason": "有直接状态描述，但缺少近期专业课检测数据。",
+      "information_gaps": ["近两周专业课主动回忆正确率"],
+      "costs": ["会压缩其他科目的可用时间"],
+      "review_window": "7-14 天",
+      "review_at": "2026-08-21",
+      "review_conditions": ["获得两次可比的专业课回忆结果"],
+      "fallbacks": ["若总时长受限，仅替换低收益的被动阅读时段"]
+    }
+  ]
+}
