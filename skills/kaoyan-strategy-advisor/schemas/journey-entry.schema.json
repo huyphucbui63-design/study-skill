@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://study-skill.local/schema/journey-entry.schema.json",
+  "title": "Kaoyan journey entry",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["date", "target", "stage", "subject_progress", "study_state", "main_problems", "constraints", "ideas", "important_decisions"],
+  "properties": {
+    "date": {"type": "string", "format": "date"},
+    "target": {"type": "string"},
+    "stage": {"type": "string"},
+    "subject_progress": {"type": "object", "additionalProperties": {"type": "string"}},
+    "study_state": {"type": "string"},
+    "main_problems": {"type": "array", "items": {"type": "string"}},
+    "constraints": {"type": "array", "items": {"type": "string"}},
+    "ideas": {"type": "array", "items": {"type": "string"}},
+    "important_decisions": {"type": "array", "items": {"type": "string"}},
+    "correction_of": {"type": ["string", "null"]}
+  }
+}
