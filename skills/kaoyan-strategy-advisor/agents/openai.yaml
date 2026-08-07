@@ -1,0 +1,6 @@
+interface:
+  display_name: "Kaoyan Strategy Advisor"
+  short_description: "Evidence-based stage strategy with consented history"
+  default_prompt: "Use $kaoyan-strategy-advisor to review my preparation state and suggest stage-level adjustments without creating daily tasks."
+policy:
+  allow_implicit_invocation: true
