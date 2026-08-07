@@ -13,6 +13,7 @@
 
 ```text
 skills/kaoyan-print-kit/       Skill 主体
+skills/kaoyan-strategy-advisor/ 阶段策略分析与授权历史
 agents/study-pdf-reviewer.toml 可选的只读质检 Agent
 ```
 
@@ -27,6 +28,16 @@ agents/study-pdf-reviewer.toml 可选的只读质检 Agent
 
 - Windows：`%USERPROFILE%\.codex\agents\study-pdf-reviewer.toml`
 - macOS / Linux：`~/.codex/agents/study-pdf-reviewer.toml`
+
+## 阶段策略分析
+
+安装 `skills/kaoyan-strategy-advisor` 后，可用 `$kaoyan-strategy-advisor` 分析当前问题、历程状态和已明确保留的学习记录。输出只覆盖阶段方向、各科或学习活动投入比例、进度风险、阶段切换条件、观察周期和备选方案，不自动制定每日任务。
+
+该 Skill 默认只读。用户明确选择后，才会追加 `data/kaoyan-journey.md`、`data/study-records.jsonl` 或 `data/strategy-history.jsonl`。策略建议与 `accepted`、`rejected`、`undecided` 状态均采用 JSONL 追加事件，历史不会被无痕覆盖。
+
+在仓库根目录运行数据校验：
+
+    python skills/kaoyan-strategy-advisor/scripts/strategy_store.py validate --data-dir data
 
 重启 Codex 后，可直接用自然语言调用，无需记住 Agent 名称。例如：
 
